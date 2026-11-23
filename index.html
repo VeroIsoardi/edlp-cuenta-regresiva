@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cuenta regresiva Pincha</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+/* VOICE: hinchada, ansiedad de semana de final, festiva pero simple
+   IDEA: la cuenta regresiva del club como un videojuego de 8 bits, un nivel por día
+   PICTURE: escena pixel art animada que cambia cada día, del 10 al 0
+   COLOUR and TYPE: rojo y blanco a rayas, negro para sombras, dorado solo para copas; Press Start 2P + VT323
+   LAYOUT: título y contador arriba, escena grande, dato del día con camiseta, tira de camisetas 10→0 */
+:root{color-scheme:dark;--red:#c8102e;--red2:#a80d25;--ink:#fff7ee;--k:#160b0e;--gold:#f2c94c;--paper:#f6f1e7}
+:root[data-theme=light],:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+/* una sola pantalla: dato arriba, escena en el medio, contador abajo */
+html,body{height:100%}
+body{margin:0;color:var(--ink);font:22px/1.2 "VT323",monospace;overflow:hidden;
+  height:100vh;height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:linear-gradient(var(--sky),var(--ground));transition:--sky 1s,--ground 1s}
+/* la columna de textos toma el ancho exterior del marco de la escena (--col, lo mide el script) */
+.wrap{max-width:calc(var(--col,1040px - 2*max(4vw,14px)) + 2*max(4vw,14px));margin:0 auto;padding:clamp(10px,2.4vh,28px) max(4vw,14px)}
+/* el fondo es un degradé liso entre el cielo y el piso de la escena del día */
+@property --sky{syntax:"<color>";inherits:true;initial-value:#141a2e}
+@property --ground{syntax:"<color>";inherits:true;initial-value:#2a0c16}
+/* la escena entra entera y centrada; a los costados se estiran sus columnas de borde */
+.band{position:relative;container-type:size;display:grid;place-items:center}
+.band>*{--fw:min(100cqw - 2*max(4vw,14px),1040px - 2*max(4vw,14px),(100cqh - 32px)*16/9)}
+.fig{position:relative;width:var(--fw);aspect-ratio:16/9;box-shadow:0 0 0 6px var(--paper),8px 8px 0 6px var(--k)}
+.fig canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+/* jerarquía: 1 título grande · 2 escena · 3 dato del día con navegación · 4 contador chico */
+.meta{margin:0 0 6px;font-size:clamp(17px,2.4vh,22px);opacity:.85}
+h1{font:clamp(22px,min(5.4vw,7vh),56px)/1.15 "Press Start 2P",monospace;margin:0 0 10px;text-shadow:4px 4px 0 var(--k);text-wrap:balance}
+/* el emblema va centrado en el margen izquierdo, a la altura del título; si no hay lugar se oculta */
+.titlerow{position:relative;margin:0 0 10px}
+.titlerow h1{margin:0}
+html.crest-out #crest{display:block}
+#crest{--ew:clamp(96px,min(15vw,24vh),210px);position:absolute;top:50%;transform:translateY(-28%);display:none;width:var(--ew);aspect-ratio:1;
+  right:calc(100% + ((100vw - var(--col,1040px)) / 2 - var(--ew)) / 2);image-rendering:pixelated;image-rendering:crisp-edges;filter:drop-shadow(4px 4px 0 var(--k))}
+h1 b{font-weight:normal;color:var(--paper);background:var(--red);padding:.08em .25em 0;text-shadow:none;box-shadow:4px 4px 0 var(--k)}
+.sub{margin:0;font-size:clamp(17px,2.4vh,22px);display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.clock{font:clamp(11px,1.6vh,14px)/1 "Press Start 2P",monospace;background:var(--k);color:var(--paper);padding:8px 10px 7px;font-variant-numeric:tabular-nums;box-shadow:3px 3px 0 rgba(0,0,0,.35)}
+.dato{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;gap:clamp(10px,1.6vw,18px);align-items:center;background:var(--k);padding:clamp(8px,1.6vh,16px) clamp(10px,1.6vw,16px);box-shadow:8px 8px 0 rgba(0,0,0,.35)}
+.dato p{margin:0;font-size:clamp(19px,min(2.8vw,3.6vh),30px);line-height:1.1}
+.jersey{width:clamp(48px,8.5vh,80px);aspect-ratio:84/92;position:relative;flex:none;
+  clip-path:polygon(22% 0,78% 0,100% 16%,90% 34%,82% 28%,82% 100%,18% 100%,18% 28%,10% 34%,0 16%);
+  background:repeating-linear-gradient(90deg,#d6182a 0 12px,#f6f1e7 12px 24px)}
+.jersey i{position:absolute;left:50%;top:36%;transform:translateX(-50%);font:normal clamp(13px,2.2vh,20px) "Press Start 2P",monospace;color:#111;background:#f6f1e7;padding:5px 3px 3px;min-width:44%;text-align:center}
+.arr{all:unset;cursor:pointer;font:clamp(16px,2.6vh,22px)/1 "Press Start 2P",monospace;color:var(--paper);padding:10px 8px}
+.arr[disabled]{opacity:.2;cursor:default}
+.arr:focus-visible{outline:3px dashed var(--paper);outline-offset:2px}
+@media(max-width:640px){.meta{display:none}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<header class="sky"><div class="wrap">
+  <p class="meta">Final de la Copa Libertadores · Estudiantes vs. Palmeiras</p>
+  <div class="titlerow"><canvas id="crest" width="96" height="96" role="img" aria-label="Escudo de Estudiantes"></canvas><h1 id="title">Faltan <b>5</b> días</h1></div>
+  <p class="sub"><span>Sábado 28/11, 17:00 · Estadio Centenario, Montevideo</span><span class="clock" id="clock" role="timer" aria-label="Tiempo hasta la final"><span id="cd">0</span>d <span id="ch">00</span>:<span id="cm">00</span>:<span id="cs">00</span></span></p>
+</div></header>
+<div class="band">
+  <div class="fig"><canvas id="scene" width="192" height="108" aria-label="Escena pixel art del día"></canvas></div>
+</div>
+<footer class="ground"><div class="wrap">
+  <div class="dato">
+    <button class="arr" id="prev" type="button" aria-label="Día anterior">◀</button>
+    <div class="jersey" aria-hidden="true"><i id="jn">5</i></div>
+    <p id="dt"></p>
+    <button class="arr" id="next" type="button" aria-label="Día siguiente">▶</button>
+  </div>
+</div></footer>
+<script>
+{
+const KICK=new Date('2026-11-28T17:00:00-03:00').getTime();
+const DATA={
+ 10:{t:'Partidos ganados en la Libertadores 2009'},
+ 9:{t:'Puntos que sumamos en el Grupo A de esta Copa para pasar a octavos'},
+ 8:{t:'Goles de Mauro Boselli en la Libertadores 2009: goleador del torneo'},
+ 7:{t:'Minuto en el que Juan Ramón Verón mete el gol en Old Trafford'},
+ 6:{t:'Copas internacionales: 4 Libertadores, 1 Intercontinental y 1 Interamericana'},
+ 5:{t:'La Libertadores que vamos a buscar'},
+ 4:{t:'De agosto de 1905: el día en que se fundó Estudiantes'},
+ 3:{t:'Penales que atajó Muslera en el Maracaná: Jorginho, Paquetá y Bruno Henrique'},
+ 2:{t:'Finales contra Palmeiras: 1968, con un 2-0 en el desempate del Centenario, y 2026'},
+ 1:{t:'Río que hay que cruzar para llegar al Centenario'},
+ 0:{t:'Hoy. Centenario, 17:00. Vamos Pincha'}
+};
+const cv=document.getElementById('scene'),g=cv.getContext('2d'),W=192,H=108;
+const P={r:'#d6182a',w:'#f6f1e7',k:'#141014',s:'#f0b58a',y:'#f2c94c',Y:'#b8862b',c:'#9fd3e6',d:'#23305a',b:'#2a5bd7',n:'#5b3a22',g:'#444'};
+const R=(x,y,w,h,c)=>{g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),w,h)};
+const rnd=i=>{const v=Math.sin(i*127.1+311.7)*43758.5453;return v-Math.floor(v)};
+const hx=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16));
+const mix=(a,b,t)=>{const A=hx(a),B=hx(b);return 'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(',')+')'};
+const bands=(y0,y1,c0,c1,st)=>{for(let y=y0;y<y1;y+=st)R(0,y,W,st,mix(c0,c1,(y-y0)/(y1-y0)))};
+const disk=(cx,cy,r,c)=>{for(let y=-r;y<=r;y++)for(let x=-r;x<=r;x++)if(x*x+y*y<=r*r)R(cx+x,cy+y,1,1,c)};
+const stars=(n,t)=>{for(let k=0;k<n;k++)if(Math.sin(t*3+k*1.7)>-.5)R(rnd(k)*W,rnd(k+99)*48,1,1,'#fff')};
+const txt=(s,x,y,c,sz=8)=>{g.font=sz+'px "Press Start 2P",monospace';g.textBaseline='top';g.fillStyle='#000';g.fillText(s,x+1,y+1);g.fillStyle=c;g.fillText(s,x,y)};
+const spr=(rows,x,y,pal={},s=1)=>rows.forEach((row,j)=>[...row].forEach((ch,i)=>{if(ch!=='.')R(x+i*s,y+j*s,s,s,pal[ch]||P[ch])}));
+const CUP=['.yyyyyyy.','y.yyyyy.y','y.yyyyy.y','.yyyyyyy.','..yyyyy..','...yyy...','....y....','...yyy...','..nnnnn..','..nnnnn..'];
+const STAR=['...y...','..yyy..','yyyyyyy','.yyyyy.','..yyy..','.yy.yy.','yy...yy'];
+const BUS=['.rrrrrrrrrrrrrr.','rcccwcccwcccwccr','rcccwcccwcccwccr','wwwwwwwwwwwwwwww','rrrrrrrrrrrrrrrr','.kk.........kk..'];
+const CAR=['..bbbb...','.bcbbcb..','bbbbbbbbb','.k....k..'];
+const BIKE=['...s...','..rrr..','...r...','.kk.kk.','k..k..k','.kk.kk.'];
+const BOAT=['...........rr...........','..........wwww..........','.......wwwwwwwwwww......','.....wwcwcwcwcwcwcww....','...wwwwwwwwwwwwwwwwwwww.','ddddddddddddddddddddddd.','.ddddddddddddddddddddd..'];
+const RUN=['.s.','.s.','rwr','rwr','.k.','k.k'];
+const flag=(x,y,w,h,t,ph=0)=>{R(x-1,y,1,h+16,'#ddd');for(let i=0;i<w;i++){const o=Math.round(Math.sin(t*5-i*.5+ph)*1.6*(i/w));for(let j=0;j<h;j++)R(x+i,y+j+o,1,1,Math.floor(j/(h/3))===1?P.w:P.r)}};
+const fire=(cx,cy,p,col)=>{if(p<.3){R(cx,H-8-(H-8-cy)*(p/.3),1,2,'#ffe9a8');return}const q=(p-.3)/.7;g.globalAlpha=Math.max(0,1-q);for(let k=0;k<16;k++){const a=k/16*Math.PI*2,r=2+q*18;R(cx+Math.cos(a)*r,cy+Math.sin(a)*r+q*q*6,1,1,k%2?col:'#fff')}g.globalAlpha=1};
+const crowd=(y0,y1,t,cols,jump)=>{R(0,y0,W,y1-y0,'#231c22');for(let y=y0;y<y1;y+=3)for(let x=0;x<W;x+=2){const c=cols[(rnd(x*13.7+y*7.1)*cols.length)|0];const b=jump&&Math.sin(t*9+x*.7+y)>.5?-1:0;R(x,y+b,2,2,c)}};
+const pitch=y=>{for(let j=y;j<H;j++)R(0,j,W,1,Math.floor((j-y)/4)%2?'#3a9a49':'#348b42');R(0,y,W,1,'#d8eed8')};
+const tower=(x,y,c='#efe9dd')=>{R(x,y,7,46,c);R(x-1,y-2,9,3,c);for(let k=0;k<6;k++)R(x+2,y+5+k*6,3,2,'#8d877d');R(x+3,y-10,1,8,'#bbb');R(x+4,y-10,4,1,P.w);R(x+4,y-9,4,1,P.r)};
+const centenario=(t,night)=>{
+  if(night){bands(0,58,'#05060f','#25102a',4);stars(30,t)}else{bands(0,58,'#7fb7de','#f4cfa4',3);disk(156,20,7,'#fff1c2')}
+  tower(34,8,night?'#cfc8bc':'#efe9dd');
+  R(0,50,W,6,night?'#2a2630':'#7b7680');
+  crowd(56,84,t,[P.r,P.w,P.r,'#3a3540'],night);pitch(84)};
+const S={};
+const goalF=()=>{for(let j=0;j<52;j+=4)R(46,30+j,100,1,'rgba(255,255,255,.25)');for(let i=0;i<100;i+=4)R(46+i,30,1,52,'rgba(255,255,255,.25)');R(44,28,104,3,'#fff');R(44,28,3,56,'#fff');R(145,28,3,56,'#fff')};
+S[10]=t=>{const c=t%18,n=Math.min(10,Math.floor(c/1.2)),l=(c%1.2)/1.2,done=c>=12,won=done?10:n+(l>.82?1:0);
+  bands(0,32,'#07040f','#2a0a18',4);stars(24,t);
+  [[118,14],[178,14]].forEach(([x,y])=>{R(x+2,y+6,2,16,'#333');R(x-2,y,10,5,'#fff9d6');g.globalAlpha=.08;for(let j=0;j<40;j++)R(x+3-j*.6,y+5+j,j*1.2,1,'#fff9d6');g.globalAlpha=1});
+  crowd(30,52,t,[P.r,P.w,P.r,'#3a3540'],true);pitch(52);
+  for(let j=0;j<20;j+=3)R(172,64+j,18,1,'rgba(255,255,255,.3)');for(let i=0;i<18;i+=3)R(172+i,64,1,20,'rgba(255,255,255,.3)');R(170,62,2,22,'#fff');R(170,62,22,2,'#fff');
+  if(!done){const run=Math.min(l,.5)/.5,px=24+run*118,ty=66+(n*5)%14,dv=(n%2?-1:1)*Math.min(1,Math.max(0,(l-.55)/.2))*8;
+    R(178,68+dv,4,11,P.b);R(179,65+dv,3,3,P.s);
+    spr(RUN,px,72+(l<.5?Math.floor(t*12)%2:0),{},2);
+    if(l<.5)R(px+7,82,2,2,'#fff');else{const q=Math.min(1,(l-.5)/.3);R(149+(182-149)*q,82+(ty-82)*q-Math.sin(Math.PI*q)*6,2,2,'#fff')}
+    if(l>.82)txt('GOL!',72,58,P.y,12)}
+  else{const e=c-12,q=Math.min(1,e/1.2),j=k=>Math.abs(Math.sin(t*6+k))*4;
+    spr(CUP,82,80-q*28,{},3);spr(RUN,56,72-j(0),{},2);spr(RUN,120,72-j(1),{},2);spr(RUN,40,74-j(2),{},2);spr(RUN,138,74-j(3),{},2);
+    for(let k=0;k<6;k++)fire(24+k*29,10+(k%3)*7,((e+k*.45)%2.2)/2.2,k%2?P.r:P.y);
+    if(e>1)txt('CAMPEONES',60,36,'#fff')}
+  for(let k=0;k<10;k++){const x=4+k*9;R(x,15,7,7,k<won?P.r:'#2a2430');if(k<won)R(x+2,17,3,3,'#fff')}
+  txt('GANADOS '+won,4,4,P.y);txt('2009',158,4,'#fff')};
+S[9]=t=>{bands(0,H,'#0b0d18','#2a0c16',4);crowd(84,H,t,[P.r,P.w,'#3a3540'],true);
+  // rivales del Grupo A 2026, en orden de fecha: banderín con los colores de cada club arriba del resultado
+  const RIV={DIM:(i,j)=>j<5?'#d6182a':'#1f3f9a',CUS:(i,j)=>j>=3&&j<7?'#e0b040':'#111',FLA:(i,j)=>(j>>1)%2?'#111':'#d6182a'};
+  const M=[['1-1',1,'DIM'],['2-1',3,'CUS'],['1-1',1,'FLA'],['1-1',1,'CUS'],['0-1',0,'FLA'],['1-0',3,'DIM']],n=Math.min(6,Math.floor((t%10)/1.2)+1);let pts=0;
+  txt('GRUPO A',68,4,'#fff');
+  M.forEach(([s,p,r],k)=>{const x=6+k*31,on=k<n;
+    R(x+5,18,1,16,'#ddd');for(let i=0;i<16;i++){const o=Math.round(Math.sin(t*5-i*.5+k)*1.2*(i/16));for(let j=0;j<10;j++)R(x+6+i,19+j+o,1,1,RIV[r](i,j))}
+    R(x,36,28,22,on?(p===3?P.r:p===1?'#6a6470':'#2a2430'):'#1a1620');R(x,36,28,2,on?'#fff':'#3a3440');txt(on?s:'?',x+2,44,'#fff');if(on)pts+=p});
+  txt('PTS '+pts,62,64,P.y,12)};
+// Boselli: jugador grande con cuadros de carrera, remate y festejo
+const BTOP=['...nn...','..nnnn..','..ssss..','..ssss..','.rwrwrw.','srwrwrws','s.wrwr.s','..wrwr..','..kkkk..','..kkkk..'];
+const BLEG=[['..s..s..','.s....s.','.s....s.','kk....kk'],['...ss...','...ss...','...ss...','..kkk...'],['..s..s..','..s...s.','..s....s','.kk....k']];
+const BCEL=['s..nn..s','s.nnnn.s','s.ssss.s','.ssssss.','.rwrwrw.','..wrwr..','..wrwr..','..wrwr..','..kkkk..','..kkkk..'];
+const boselli=(x,y,leg,cel)=>spr((cel?BCEL:BTOP).concat(BLEG[leg]),x,y,{n:'#2a1a12'},2);
+const keeper=(kx,ky,lean)=>{const c='#1f8a4c';R(kx-5,ky,10,14,c);R(kx-3,ky-7,6,6,P.s);R(kx-3,ky-8,6,2,'#2a1a12');
+  R(kx-11,ky+1-lean*4,6,3,P.y);R(kx+5,ky+1+lean*4,6,3,P.y);R(kx-4,ky+14,3,9,'#111');R(kx+1,ky+14,3,9,'#111')};
+S[8]=t=>{bands(0,40,'#0d1a2b','#203a5c',4);crowd(18,40,t,[P.r,P.w,'#2b3550'],true);pitch(40);goalF();
+  const T=[[56,38],[134,70],[60,72],[132,40],[100,36],[54,56],[138,56],[118,72]];
+  const c=t%17,n=Math.min(8,Math.floor(c/1.6)),l=(c%1.6)/1.6,done=c>=12.8,goals=done?8:n+(l>.8?1:0);
+  for(let k=0;k<goals;k++)R(T[k][0],T[k][1],2,2,'#fff');
+  if(!done){const [tx,ty]=T[n],side=n%2?1:-1,run=Math.min(1,l/.4),sx=side>0?170:8,ex=side>0?98:76,px=sx+(ex-sx)*run;
+    const q=Math.max(0,Math.min(1,(l-.5)/.3)),dd=tx<96?1:-1;
+    keeper(96+dd*22*q,56+8*q,dd*q);
+    if(l<.5)R(94,92,4,4,'#fff');else{const bs=q<.5?3:2;R(94+(tx-94)*q,92+(ty-92)*q-Math.sin(Math.PI*q)*10,bs,bs,'#fff')}
+    boselli(px,80,l<.4?Math.floor(t*10)%2:l<.6?2:1,false);
+    if(l>.8)txt('GOL!',74,10,P.y,12)}
+  else{const e=c-12.8;keeper(70,70,1);R(60,92,20,2,'rgba(0,0,0,.25)');
+    boselli(88,78-Math.abs(Math.sin(e*6))*6,1,true);
+    if(e>.4)txt('GOLEADOR',64,10,P.y)}
+  txt('GOLES '+goals,4,4,'#fff');if(goals===8)txt('8!',150,4,P.y,16)};
+// jugador genérico con el sprite de Boselli: top = paleta de camiseta/short, leg = 0/1 carrera, 2 remate
+const pl=(x,y,leg,top,sc=1,cel=false)=>{spr(cel?BCEL:BTOP,x,y,top,sc);spr(BLEG[leg],x,y+10*sc,{},sc)};
+S[7]=t=>{const p=t%8;bands(0,40,'#10141c','#2a303c',4);crowd(26,52,t,['#5a2a24','#3a3a44','#7a3a2a','#cfc8bc'],false);
+  for(let i=0;i<12;i++)R(i*16,52,16,56,i%2?'#2f6e3a':'#357a40');
+  R(176,60,1,26,'#fff');R(186,58,1,28,'#fff');R(176,60,11,1,'#fff');for(let j=0;j<26;j+=3)R(177,61+j,9,1,'rgba(255,255,255,.35)');
+  const ES={n:'#2a1a12'},MU={r:'#c8102e',w:'#c8102e',k:'#f2f2f2',n:'#5a3a22'},GK={r:'#2a2a2a',w:'#2a2a2a',k:'#111',n:'#3a2a1a'};
+  const st=Math.floor(t*10)%2,goal=p>=4,jump=(a,b,h)=>p>a&&p<b?Math.sin(Math.PI*(p-a)/(b-a))*h:0;
+  // compañero que tira el centro desde la izquierda
+  const cx=12+Math.min(p,1.2)/1.2*28;
+  if(goal)pl(40,72-Math.abs(Math.sin(t*6+1))*3,1,ES,1,true);else pl(cx,72,p<1.2?st:p<1.5?2:1,ES);
+  // defensor del United que marca a Verón y salta tarde
+  const mx=88+Math.min(p,3)/3*46;pl(mx,72-jump(3.3,4.1,5),p<3?1-st:1,MU);
+  // otro defensor cerrando atrás
+  pl(118+Math.sin(t*2)*3,73,st,MU);
+  // arquero: se tira tarde
+  const dv=p>3.6?Math.min(1,(p-3.6)/.4):0;pl(164+dv*4,72+dv*8,dv?2:1,GK);if(dv)R(163,80+dv*8-1,3,2,P.y);
+  // Verón entra al área y cabecea
+  const vx=100+Math.min(p,3)/3*46;
+  if(!goal)pl(vx,72-jump(3,3.8,9),p<3?st:1,ES);else pl(146,70-Math.abs(Math.sin(t*6))*4,1,ES,1,true);
+  // pelota: en los pies, centro con comba, cabezazo y red
+  if(p<1.4)R(cx+9,85,2,2,'#fff');
+  else if(p<3.4){const q=(p-1.4)/2;R(49+(150-49)*q,85+(64-85)*q-Math.sin(Math.PI*q)*40,2,2,'#fff')}
+  else if(p<4){const q=(p-3.4)/.6;R(150+(181-150)*q,64+(70-64)*q,2,2,'#fff')}
+  else R(181,70+Math.min(14,(p-4)*30),2,2,'#fff');
+  g.globalAlpha=.5;for(let k=0;k<70;k++){const x=(rnd(k)*W+t*40)%W,y=(rnd(k+3)*H+t*120)%H;R(x,y,1,3,'#9fb4c8')}g.globalAlpha=1;
+  txt("MIN 0"+Math.min(7,Math.floor(p*1.75)),4,4,'#fff');if(goal)txt('GOL!',70,20,P.y,16)};
+S[6]=t=>{const c=t%12,n=Math.min(6,Math.floor(c/1.2)+1),fin=c>7.5;
+  bands(0,26,'#7fb7de','#f4cfa4',3);disk(170,12,6,'#fff1c2');crowd(24,48,t,[P.r,P.w,P.r,'#3a3540'],fin);pitch(48);
+  // 4 Libertadores (dorado), Intercontinental 68 (plateado), Interamericana 69 (bronce)
+  const CU=[['68',P.y],['69',P.y],['70',P.y],['09',P.y],['68','#d4dbe3'],['69','#c98a4a']],ES={n:'#2a1a12'};
+  CU.forEach(([y,col],k)=>{if(k>=n)return;const x=10+k*30,since=c-k*1.2,j=fin?Math.abs(Math.sin(t*6+k))*5:since<.4?Math.sin(Math.PI*since/.4)*6:0;
+    pl(x,72-j,1,ES,1,true);spr(CUP,x-1,61-j,{y:col,n:'#5b3a22'});txt(y,x,96,'#fff')});
+  if(fin)for(let k=0;k<60;k++){const x=(rnd(k)*W+Math.sin(t+k)*6)%W,y=((rnd(k+7)*H)+(c-7.5)*30)%H;R(x,y,2,1,k%2?P.r:P.w)}
+  txt('COPAS '+n,4,4,'#fff');if(fin)txt('6',150,2,P.y,16)};
+// banderín del club (30x21, offscreen): borde dorado, mitad roja arriba y blanca abajo;
+// la franja izquierda y la E invierten los colores en cada mitad (blancas arriba, rojas abajo)
+const PEN=document.createElement('canvas');PEN.width=30;PEN.height=21;
+{const c2=PEN.getContext('2d'),L=30,HH=10,G='#c9a46a',W2='#f6f1e7',R2='#d6182a';
+  const px=(x,y,c)=>{c2.fillStyle=c;c2.fillRect(x,y+HH,1,1)},inv=j=>j<0?W2:R2,bg=j=>j<0?R2:W2;
+  for(let i=0;i<L;i++){const hh=Math.round(HH*(1-i/L));for(let j=-hh;j<=hh;j++)px(i,j,i===0||Math.abs(j)===hh?G:i===1?inv(j):bg(j))}
+  ['#######','#######','.##...#','.##.#..','.####..','.##.#..','.##...#','#######','#######'].forEach((row,gy)=>[...row].forEach((ch,gx)=>{if(ch==='#')px(4+gx,gy-4,inv(gy-4))}))}
+// emblema del margen (96x96): hojas de roble y bellota detrás del banderín (al doble), rodeado por 10 estrellas en arco (la de la derecha, más grande)
+{const e=document.getElementById('crest').getContext('2d'),F=(x,y,w,h,c)=>{e.fillStyle=c;e.fillRect(Math.round(x),Math.round(y),w,h)};
+  const dsk=(cx,cy,r,c)=>{for(let y=-r;y<=r;y++)for(let x=-r;x<=r;x++)if(x*x+y*y<=r*r+r*.6)F(cx+x,cy+y,1,1,c)};
+  // hoja de roble: contorno ancho con lóbulos alternados y nervadura central
+  const oak=(x,y,dx,dy,n)=>{for(let k=0;k<n;k++){const r=Math.round(Math.sin(Math.PI*(k+.6)/(n+.4))*6)+(k%3===1?2:0);dsk(x+dx*k*2,y+dy*k*2,Math.max(2,r),'#2c6a2a')}
+    for(let k=0;k<n;k+=2){const r=Math.round(Math.sin(Math.PI*(k+.6)/(n+.4))*4);dsk(x+dx*k*2+dy*r,y+dy*k*2-dx*r,2,'#3d8a3a')}
+    for(let k=-2;k<n*2-2;k++)F(x+dx*k,y+dy*k,1,1,'#163a16')};
+  oak(46,36,-.25,-.97,10);oak(60,38,.62,-.78,10);oak(52,62,.2,.98,7);
+  F(60,74,2,5,'#3a2a1a');dsk(64,81,4,'#c9a46a');F(59,76,10,3,'#7a5a2a');F(62,80,2,2,'#e6c890');
+  e.imageSmoothingEnabled=false;e.drawImage(PEN,28,27,60,42);
+  const st=(x,y,rows,sc)=>rows.forEach((r,j)=>[...r].forEach((ch,i)=>{if(ch!=='.')F(x+i*sc,y+j*sc,sc,sc,'#f2c94c')})),S5=['..y..','.yyy.','yyyyy','.yyy.','.y.y.'];
+  [-103,-125,-148,-172,165,145,117,78,48,15].forEach((d,k)=>{const a=d*Math.PI/180,x=48+Math.cos(a)*40,y=48+Math.sin(a)*40;k===9?st(x-7,y-7,STAR,2):st(x-5,y-5,S5,2)})}
+S[5]=t=>{bands(0,H,'#07040f','#2a0a14',4);stars(50,t);
+  for(let k=0;k<5;k++){const x=46+k*20,y=26-[0,4,6,4,0][k];if(k<4)spr(STAR,x,y,{},2);else spr(STAR,x,y,{y:Math.floor(t*2)%2?P.y:'#5b4a20'},2)}
+  spr(CUP,78,52,{},4);const gx=(t*30)%60;R(80+gx%36,54,2,2,'#fff')};
+// placa de bronce que se graba letra por letra, con el banderín del club arriba
+const CRESTCV=PEN;
+S[4]=t=>{const c=t%11;
+  R(0,0,W,H,'#2a2226');for(let y=0;y<H;y+=6){R(0,y,W,1,'#1c171a');for(let x=(y/6)%2?0:8;x<W;x+=16)R(x,y,1,6,'#1c171a')}
+  const X=34,Y=8,PW=124,PH=92;R(X+3,Y+3,PW,PH,'#120e10');R(X,Y,PW,PH,'#6e4620');R(X+2,Y+2,PW-4,PH-4,'#b07a3c');R(X+4,Y+4,PW-8,PH-8,'#8a5a28');
+  [[X+5,Y+5],[X+PW-8,Y+5],[X+5,Y+PH-8],[X+PW-8,Y+PH-8]].forEach(([x,y])=>{R(x,y,3,3,'#d9a866');R(x+1,y+1,1,1,'#5a3a18')});
+  g.drawImage(CRESTCV,81,14);
+  const L=[['FUNDADO EL',56,44],['4 DE AGOSTO',52,58],['DE 1905',68,72]],tot=28,shown=Math.floor(Math.min(1,c/5.5)*tot);
+  g.font='8px "Press Start 2P",monospace';g.textBaseline='top';let left=shown;
+  L.forEach(([s,x,y])=>{const n=Math.max(0,Math.min(s.length,left));left-=s.length;if(!n)return;const part=s.slice(0,n);
+    g.fillStyle='#d9a866';g.fillText(part,x+1,y+1);g.fillStyle='#3a2210';g.fillText(part,x,y);
+    if(n<s.length&&c<5.5)for(let k=0;k<4;k++)R(x+n*8+rnd(k+Math.floor(t*20))*6-1,y+rnd(k+9+Math.floor(t*20))*8,1,1,k%2?'#fff3c0':P.y)});
+  if(c>6&&c<8){const sx=X+4+((c-6)/2)*(PW-8);g.globalAlpha=.3;for(let y=Y+4;y<Y+PH-4;y++)for(let i=0;i<6;i++){const x=Math.round(sx+i+(Y+PH/2-y)*.4);if(x>=X+4&&x<X+PW-4)R(x,y,1,1,'#fff6d8')}g.globalAlpha=1}};
+// Muslera: parado, o volando horizontal hacia dir (±1) con los guantes en (gx,gy)
+const musl=(cx,cy,dir,fly)=>{const K='#2a2a2a',Y=P.y;
+  if(!fly){R(cx-3,cy-16,6,6,P.s);R(cx-3,cy-17,6,2,'#2a1a12');R(cx-6,cy-10,12,13,K);R(cx-12,cy-9,6,3,K);R(cx+6,cy-9,6,3,K);R(cx-15,cy-10,3,4,Y);R(cx+12,cy-10,3,4,Y);
+    R(cx-5,cy+3,10,4,'#111');R(cx-4,cy+7,3,8,K);R(cx+1,cy+7,3,8,K);R(cx-5,cy+15,4,2,'#111');R(cx+1,cy+15,4,2,'#111');return}
+  const gx=cx,gy=cy,d=dir,X=(o,w)=>d>0?gx-o-w:gx+o;
+  R(X(0,4),gy-2,4,4,Y);R(X(3,8),gy-1,8,3,K);R(X(10,6),gy-6,6,6,P.s);R(X(10,6),gy-7,6,2,'#2a1a12');R(X(11,14),gy-2,14,10,K);R(X(25,4),gy,4,8,'#111');R(X(29,10),gy+1,10,3,K);R(X(39,3),gy,3,5,'#111')};
+S[3]=t=>{bands(0,40,'#0d1a2b','#203a5c',4);crowd(18,40,t,['#e2c400','#1f6f3a','#d64a2a','#f6f1e7'],false);pitch(40);goalF();
+  const PEN=[['JORGINHO',-1,72],['PAQUETA',1,56],['B.HENRIQUE',-1,46]],FLA={r:'#d6182a',w:'#111',k:'#f2f2f2',n:'#2a1a12'};
+  const c=t%11,k=Math.min(3,Math.floor(c/3)),l=(c%3)/3;
+  if(k<3){const [nm,dir,ty]=PEN[k],tx=96+dir*34;
+    const q=Math.max(0,Math.min(1,(l-.38)/.22));
+    // arquero: parado, se tira y queda en el piso
+    if(q<.3)musl(96+dir*q*10,68,dir,false);else{const gx=96+(tx-96)*q,gy=l<.62?66+(ty-66)*q:ty+Math.min(1,(l-.62)/.15)*(80-ty);musl(gx,gy,dir,true)}
+    // pelota: punto penal, viaja hasta los guantes, se frena y rebota afuera
+    if(l<.4)R(95,92,4,4,'#fff');
+    else if(l<.6){const b=(l-.4)/.2;R(95+(tx-95)*b,92+(ty-92)*b,b<.5?3:2,b<.5?3:2,'#fff')}
+    else{const r=Math.min(1,(l-.6)/.3);R(tx+dir*r*26,ty+r*r*30-Math.sin(Math.PI*r)*10,2,2,'#fff')}
+    // pateador de Flamengo
+    const run=Math.min(1,l/.35);pl(122-run*22,80,l<.35?Math.floor(t*10)%2:l<.45?2:1,FLA,2);
+    txt(nm,4,16,'#fff');if(l>.62)txt('ATAJO!',66,10,P.y,12)}
+  else{const j=Math.abs(Math.sin(t*6))*4;musl(96,68-j,1,false);txt('3!',150,4,P.y,16)}
+  txt('ATAJADAS '+(k<3?k+(l>.62?1:0):3),4,4,'#fff')};
+S[2]=t=>{centenario(t,false);flag(60,24,14,9,t);flag(140,24,14,9,t,1);
+  const im=g.getImageData(0,0,W,H),d=im.data;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){if(x>=96+(y-54)*.35)continue;const i=(y*W+x)*4,r=d[i],gg=d[i+1],b=d[i+2];
+    let v=.3*r+.59*gg+.11*b+(rnd(x*7+y*13+Math.floor(t*10))-.5)*28;d[i]=Math.min(255,v*1.07+20);d[i+1]=Math.min(255,v*.95+8);d[i+2]=Math.min(255,v*.78)}
+  g.putImageData(im,0,0);for(let y=0;y<H;y++)R(96+(y-54)*.35,y,1,1,'#fff');txt('1968',6,4,'#f3e2c0');txt('2026',154,4,'#fff')};
+const mflag=(x,y,t)=>{R(x,y,1,7,'#ddd');for(let i=0;i<5;i++){const o=Math.round(Math.sin(t*8-i)*.6);for(let j=0;j<3;j++)R(x+1+i,y+j+o,1,1,j===1?P.w:P.r)}};
+S[1]=t=>{bands(0,56,'#6fa8dc','#ffb36b',3);
+  for(let i=0;i<7;i++)R(4+i*7,38-(i*5)%12,6,18+(i*5)%12,'#7a5a6a');R(22,22,3,16,'#6a4a5a');R(32,22,3,16,'#6a4a5a');
+  for(let i=0;i<8;i++)R(140+i*6,34-(i*7)%14,5,22+(i*7)%14,'#5a6a8a');tower(176,18,'#e8e0d0');
+  R(0,56,W,6,'#4a4a50');for(let x=0;x<W;x+=12)R(x+((t*20)|0)%12,58,6,1,'#e8d88a');
+  for(let k=0;k<9;k++){const sp=k%5===4?7:18,x=((t*sp+k*26)%(W+40))-30;
+    if(k%5===4)spr(BIKE,x,50,{});else if(k%3===2)spr(CAR,x,54,{b:['#2a5bd7','#e0e0e0','#f2c94c'][k%3]});else{spr(BUS,x,50);mflag(x+3,43,t+k);mflag(x+11,43,t+k+1)}}
+  bands(62,H,'#3d6f94','#1f3d5c',3);
+  for(let k=0;k<30;k++){const x=(rnd(k)*W+t*6)%W,y=64+rnd(k+3)*44;if(Math.sin(t*4+k)>0)R(x,y,3,1,'#8fbad8')}
+  const bx=((t*9)%(W+60))-40;for(let i=0;i<14;i++)if(rnd(i+Math.floor(t*6))>.4)R(bx-4-i*2,86+(i%2),2,1,'#e8f2f8');spr(BOAT,bx,78);mflag(bx+8,70,t);mflag(bx+15,70,t+2);
+  txt('MICROS '+Math.min(121,Math.floor((t*6)%160)),4,4,'#fff')};
+S[0]=t=>{centenario(t,true);
+  [[16,4],[172,4]].forEach(([x,y])=>{R(x+3,y+6,2,46,'#333');R(x-4,y,16,6,'#fff9d6');g.globalAlpha=.1;for(let j=0;j<50;j++)R(x+4-j*.7,y+6+j,j*1.4,1,'#fff9d6');g.globalAlpha=1});
+  const c=t%6;for(let k=0;k<4;k++){const l=c-k*1.4;if(l>0&&l<2.2)fire(40+k*38,14+(k%2)*10,l/2.2,k%2?P.r:P.w)}
+  for(let k=0;k<30;k++){const x=rnd(k)*W,y=(rnd(k+5)*H+t*24*(1+rnd(k)))%84;R(x,y,1,1,k%2?P.r:P.w)}
+  txt('HOY',80,40,P.y,12)};
+S.post=S[0];
+
+const $=id=>document.getElementById(id),pad=n=>String(n).padStart(2,'0');
+const daysLeft=()=>{const a=new Date(Date.now()-3*3600e3);return Math.round((Date.UTC(2026,10,28)-Date.UTC(a.getUTCFullYear(),a.getUTCMonth(),a.getUTCDate()))/864e5)};
+let today=daysLeft(),cur=null;
+const pick=()=>{const m=location.hash.match(/^#dia-(\d+)$/);if(m&&DATA[+m[1]])return +m[1];return Math.max(0,Math.min(10,today))};
+const show=()=>{cur=pick();const d=DATA[cur];$('jn').textContent=cur;$('dt').textContent=d.t;
+  const lim=Math.max(0,Math.min(10,today));
+  $('prev').disabled=cur>=10;$('next').disabled=cur<=lim;};
+const go=n=>{const lim=Math.max(0,Math.min(10,today));if(n>10||n<lim)return;location.hash=n===lim?'':'dia-'+n;if(n===lim)history.replaceState(null,'',location.pathname+location.search);show()};
+$('prev').onclick=()=>go(cur+1);$('next').onclick=()=>go(cur-1);
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft')go(cur+1);if(e.key==='ArrowRight')go(cur-1)});
+const tick=()=>{const ms=KICK-Date.now(),nt=daysLeft();if(nt!==today){today=nt;show()}
+  const v=Math.max(0,ms),D=Math.floor(v/864e5),h=Math.floor(v/36e5)%24,m=Math.floor(v/6e4)%60,s=Math.floor(v/1e3)%60;
+  $('cd').textContent=D;$('ch').textContent=pad(h);$('cm').textContent=pad(m);$('cs').textContent=pad(s);
+  $('title').innerHTML=ms<=0?'¡Vamos <b>Pincha</b>!':today<=0?'¡Hoy es la <b>final</b>!':today===1?'Falta <b>1</b> día':`Faltan <b>${today}</b> días`};
+window.addEventListener('hashchange',show);
+show();tick();setInterval(tick,1000);
+const scene=()=>KICK-Date.now()<=0&&!location.hash?S.post:S[cur];
+g.imageSmoothingEnabled=false;
+const still=matchMedia('(prefers-reduced-motion: reduce)').matches;
+// El fondo de la página toma el color promedio de la primera fila (cielo) y de la última (piso) de la escena
+const rs=document.documentElement.style;let fr=0;
+const avg=y=>{const d=g.getImageData(0,y,W,1).data;let r=0,gg=0,b=0;for(let i=0;i<d.length;i+=4){r+=d[i];gg+=d[i+1];b+=d[i+2]}return `rgb(${r/W|0},${gg/W|0},${b/W|0})`};
+const extend=()=>{if(fr++%15===0){rs.setProperty('--sky',avg(0));rs.setProperty('--ground',avg(H-1))}};
+const fig=document.querySelector('.fig');
+const crestFit=()=>{const col=fig.getBoundingClientRect().width+12,cw=$('crest').getBoundingClientRect().width||Math.min(210,Math.max(96,Math.min(innerWidth*.15,innerHeight*.24)));
+  document.documentElement.classList.toggle('crest-out',(document.documentElement.clientWidth-col)/2>cw+40)};
+new ResizeObserver(()=>{rs.setProperty('--col',fig.getBoundingClientRect().width+12+'px');crestFit()}).observe(fig); // +12: borde de 6px a cada lado
+addEventListener('resize',crestFit);
+const draw=t=>{try{scene()(t);extend()}catch(e){}};
+const loop=ts=>{draw(ts/1000);if(!still)requestAnimationFrame(loop)};
+(document.fonts?document.fonts.load('8px "Press Start 2P"').catch(()=>{}):Promise.resolve()).then(()=>still?draw(6):requestAnimationFrame(loop));
+}
+</script>
+</body>
+</html>
