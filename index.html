@@ -85,7 +85,7 @@ const DATA={
  3:{t:'Penales que atajó Muslera en el Maracaná: Jorginho, Paquetá y Bruno Henrique'},
  2:{t:'Finales contra Palmeiras: 1968, con un 2-0 en el desempate del Centenario, y 2026'},
  1:{t:'Río que hay que cruzar para llegar al Centenario'},
- 0:{t:'Hoy. Centenario, 17:00. Vamos Pincha'}
+ 0:{t:'Hoy. Centenario, 17:00.'}
 };
 const cv=document.getElementById('scene'),g=cv.getContext('2d'),W=192,H=108;
 const P={r:'#d6182a',w:'#f6f1e7',k:'#141014',s:'#f0b58a',y:'#f2c94c',Y:'#b8862b',c:'#9fd3e6',d:'#23305a',b:'#2a5bd7',n:'#5b3a22',g:'#444'};
@@ -274,7 +274,16 @@ S[0]=t=>{centenario(t,true);
   [[16,4],[172,4]].forEach(([x,y])=>{R(x+3,y+6,2,46,'#333');R(x-4,y,16,6,'#fff9d6');g.globalAlpha=.1;for(let j=0;j<50;j++)R(x+4-j*.7,y+6+j,j*1.4,1,'#fff9d6');g.globalAlpha=1});
   const c=t%6;for(let k=0;k<4;k++){const l=c-k*1.4;if(l>0&&l<2.2)fire(40+k*38,14+(k%2)*10,l/2.2,k%2?P.r:P.w)}
   for(let k=0;k<30;k++){const x=rnd(k)*W,y=(rnd(k+5)*H+t*24*(1+rnd(k)))%84;R(x,y,1,1,k%2?P.r:P.w)}
-  txt('HOY',80,40,P.y,12)};
+  // la Libertadores apoyada en el césped: base de madera con plaquitas, copa plateada con asas y el jugador arriba
+  const SV='#d4dbe3',SH='#8a929c',OK='#141014';
+  for(let y=0;y<12;y++){const w=16-Math.floor(y*8/12);R(96-w/2-1,73+y,w+2,3,OK)}R(92,85,8,9,OK);R(90,90,12,4,OK);R(85,75,4,9,OK);R(103,75,4,9,OK);R(93,65,6,10,OK);
+  R(85,93,22,2,'#5a3a22');R(86,95,20,11,'#3a2418');for(let i=0;i<4;i++)for(let j=0;j<2;j++)R(88+i*5,97+j*4,3,2,P.y);
+  R(93,86,6,7,SV);R(98,86,1,7,SH);R(91,91,10,2,SV);
+  for(let y=0;y<12;y++){const w=16-Math.floor(y*8/12),x=96-w/2;R(x,74+y,w,1,SV);R(x,74+y,1,1,'#fff');R(x+w-1,74+y,1,1,SH)}
+  R(86,76,2,7,'#b8c0ca');R(104,76,2,7,'#b8c0ca');R(88,76,1,1,'#b8c0ca');R(103,76,1,1,'#b8c0ca');
+  R(95,66,2,2,SV);R(94,68,4,4,SV);R(94,72,1,2,SV);R(97,72,1,2,SV);
+  const gl=(t*40)%120;if(gl<16)R(89+gl*.9,75+gl*.5,2,2,'#fff');
+  txt('VAMOS PINCHA',24,32,P.y,12)};
 S.post=S[0];
 
 const $=id=>document.getElementById(id),pad=n=>String(n).padStart(2,'0');
@@ -284,14 +293,14 @@ const pick=()=>{const m=location.hash.match(/^#dia-(\d+)$/);if(m&&DATA[+m[1]])re
 const show=()=>{cur=pick();const d=DATA[cur];$('jn').textContent=cur;$('dt').textContent=d.t;
   const lim=Math.max(0,Math.min(10,today));
   $('prev').disabled=cur>=10;$('next').disabled=cur<=lim;};
-const go=n=>{const lim=Math.max(0,Math.min(10,today));if(n>10||n<lim)return;location.hash=n===lim?'':'dia-'+n;if(n===lim)history.replaceState(null,'',location.pathname+location.search);show()};
+const go=n=>{const lim=Math.max(0,Math.min(10,today));if(n>10||n<lim)return;location.hash=n===lim?'':'dia-'+n;if(n===lim)history.replaceState(null,'',location.pathname+location.search);show();tick()};
 $('prev').onclick=()=>go(cur+1);$('next').onclick=()=>go(cur-1);
 addEventListener('keydown',e=>{if(e.key==='ArrowLeft')go(cur+1);if(e.key==='ArrowRight')go(cur-1)});
 const tick=()=>{const ms=KICK-Date.now(),nt=daysLeft();if(nt!==today){today=nt;show()}
   const v=Math.max(0,ms),D=Math.floor(v/864e5),h=Math.floor(v/36e5)%24,m=Math.floor(v/6e4)%60,s=Math.floor(v/1e3)%60;
   $('cd').textContent=D;$('ch').textContent=pad(h);$('cm').textContent=pad(m);$('cs').textContent=pad(s);
-  $('title').innerHTML=ms<=0?'¡Vamos <b>Pincha</b>!':today<=0?'¡Hoy es la <b>final</b>!':today===1?'Falta <b>1</b> día':`Faltan <b>${today}</b> días`};
-window.addEventListener('hashchange',show);
+  $('title').innerHTML=ms<=0?'¡Vamos <b>Pincha</b>!':today<=0||cur===0?'¡Es <b>hoy</b>!':today===1?'Falta <b>1</b> día':`Faltan <b>${today}</b> días`};
+window.addEventListener('hashchange',()=>{show();tick()});
 show();tick();setInterval(tick,1000);
 const scene=()=>KICK-Date.now()<=0&&!location.hash?S.post:S[cur];
 g.imageSmoothingEnabled=false;
